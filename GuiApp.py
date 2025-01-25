@@ -1,24 +1,23 @@
-from lxml import etree
-import geopandas as gpd
-from shapely.geometry import Point, Polygon, LineString
-import dash
-from dash import dcc, html, dash_table, Input, Output, callback
-import plotly.graph_objects as go
-from pyproj import CRS, Transformer
-import json 
 from Reader import read_egib
+from shapely.geometry import Point, Polygon, LineString
+import geopandas as gpd
+from lxml import etree
+import json
+from dash import dcc, html, dash_table, Input, Output, callback
+import dash
+import plotly.graph_objects as go
 
 # Parse the GML file
-tree = etree.parse("zsk.xml")
-root = tree.getroot()
+etreeObj = etree.parse("zsk.xml")
+root = etreeObj.getroot()
 
 # Namespace for GML and EGIB
-ns = {
+nSP = {
     'gml': 'http://www.opengis.net/gml/3.2',
     'egb': 'ewidencjaGruntowIBudynkow:1.0'
 }
 
-def extract_attributes(object_name, ns):
+def getAttr(objName, nSP):
     ignored_attributes = ['startObiekt', 'startWersjaObiekt', 'EGB_IdentyfikatorIIP']
     def recursive_extract(element):
         attributes = {}
@@ -42,11 +41,11 @@ def extract_attributes(object_name, ns):
         return attributes
  
     attributes_list = []
-    for obj in root.findall(f".//{object_name}", namespaces=ns):
+    for obj in root.findall(f".//{objName}", namespaces=nSP):
         extracted_attributes = recursive_extract(obj)
         if extracted_attributes:
-            if object_name in points_namespaces:
-                pos = obj.find(".//gml:pos", namespaces=ns)
+            if objName in points_namespaces:
+                pos = obj.find(".//gml:pos", namespaces=nSP)
                 if pos is not None:
                     extracted_attributes['pos'] = pos.text.strip()
             attributes_list.append(extracted_attributes)
@@ -218,65 +217,65 @@ polygon_namespaces = {
         {
             'name': 'Jednostka Ewidencyjna',
             'color': 'black',
-            'width': 5,
+            'width': 3,
             'label': 'nazwaWlasna'
         },
     'egb:EGB_ObrebEwidencyjny':
         {
             'name': 'Obręb Ewidencyjny',
-            'color': '#354f52',
+            'color': '#ff00ff',
             'width': 4,
             'label': 'idObrebu'
-        },
-    'egb:EGB_ObiektTrwaleZwiazanyZBudynkiem':
-        {
-            'name': 'Obiekt Trwale Związany z Budynkiem',
-            'color': 'black',
-            'width': 2        
         },
     'egb:EGB_KonturUzytkuGruntowego':
         {
             'name': 'Kontur Użytku Gruntowego',
-            'color': '#3a5a40',
+            'color': '#964B00',
             'width': 2,
             'label': 'OFU'
         },
     'egb:EGB_KonturKlasyfikacyjny':
         {
             'name': 'Kontur Klasyfikacyjny',
-            'color': '#a7c957',
+            'color': '#33bb33',
             'width': 2,
             'label': ['OZU', 'OZK']
         },
     'egb:EGB_DzialkaEwidencyjna':
         {
             'name': 'Dzialka Ewidencyjna',
-            'color': '#023e8a',
+            'color': '#0000ff',
             'width': 4,
             'label': 'NR DZIAŁKI'
         },
     'egb:EGB_Budynek':
         {
             'name': 'Budynek',
-            'color': '#c1121f',
+            'color': '#ff0000',
             'width': 3,
             'label': 'rodzajWgKST'
+        },
+    'egb:EGB_ObiektTrwaleZwiazanyZBudynkiem':
+        {
+            'name': 'Obiekt Trwale Związany z Budynkiem',
+            'color': 'black',
+            'width': 2        
         }
 }
 
 points_namespaces = {
-    'egb:EGB_AdresNieruchomosci':
-    {
-        'name': 'Adres Nieruchomości',
-        'color': 'black',
-        'width': 10
-    },
     'egb:EGB_PunktGraniczny':
     {
         'name': 'Punkt Graniczny',
-        'color': 'black',
+        'color': 'white',
         'width': 5
     },
+    'egb:EGB_AdresNieruchomosci':
+    {
+        'name': 'Adres Nieruchomości',
+        'color': '#ffff00',
+        'width': 10
+    }
 }
 
 linestring_namespaces = {
@@ -299,10 +298,10 @@ for polygon_ns, ns_info in polygon_namespaces.items():
 
     try:
         if name == 'Dzialka Ewidencyjna':
-            attributes = read_egib(ns)
+            attributes = read_egib(nSP)
         else:
-            attributes = extract_attributes(polygon_ns, ns)
-        polygons = extract_polygon(polygon_ns, ns)
+            attributes = getAttr(polygon_ns, nSP)
+        polygons = extract_polygon(polygon_ns, nSP)
         polygons_df = polygon2df4326(polygons)
 
         plot_polygons(fig, polygons_df, name, attributes, color, width, label)
@@ -317,8 +316,8 @@ for point_ns, ns_info in points_namespaces.items():
     width = ns_info['width']
 
     try:
-        attributes = extract_attributes(point_ns, ns)
-        points = extract_points(point_ns, ns)
+        attributes = getAttr(point_ns, nSP)
+        points = extract_points(point_ns, nSP)
         points_df = point2df4326(points)
 
         plot_points(fig, points_df, name, attributes, color, width)
@@ -326,24 +325,8 @@ for point_ns, ns_info in points_namespaces.items():
     except Exception as e:
         print(f"Error: {e}")
 
-# for line_ns, ns_info in linestring_namespaces.items():
-#     name = ns_info['name']
-#     color = ns_info['color']
-#     width = ns_info['width']
- 
-#     try:
-#         linestrings = extract_linestring(line_ns, ns)
-#         attributes = extract_attributes(line_ns, ns)
-#         linestrings_df = linestring2df4326(linestrings)
-
-#         plot_linestrings(fig, linestrings_df, name, attributes, color, width)
-
-#     except Exception as e:
-#         print(f"Error: {e}")
-
-
 # calculate bounding box for auto zoom
-dzialki_ewidencyjne = extract_polygon("egb:EGB_DzialkaEwidencyjna", ns)
+dzialki_ewidencyjne = extract_polygon("egb:EGB_DzialkaEwidencyjna", nSP)
 dzialki_ewidencyjne_df = polygon2df4326(dzialki_ewidencyjne)
 
 bounds = dzialki_ewidencyjne_df.total_bounds
@@ -362,16 +345,22 @@ fig.update_layout(
     margin={"r": 0, "t": 0, "l": 0, "b": 0},
     mapbox_zoom=zoom,
     showlegend=True,
+    legend_title=dict(
+        text='~ EGIB ~'
+    ),
     legend=dict(
         orientation="v",
         x=1,
         y=0,
         xanchor='right',
-        yanchor='bottom'
+        yanchor='bottom',
+        bgcolor='rgba(100, 100, 0, 0.95)',
+        font=dict(size=13, color='#dddddd', family='Courier New'),
     ),
 )
 
 app = dash.Dash(__name__)
+app.title = "Przeglądarka EGIB"
 
 app.layout = html.Div([
     dcc.Store(id='stored-figure', data=fig.to_dict()),
@@ -387,20 +376,21 @@ app.layout = html.Div([
                     'overflowX': 'auto',
                     'maxHeight': '100vh',
                     'width': '100%',
-                    'backgroundColor': 'white',
+                    'backgroundColor': 'rgba(100, 100, 0, 0.95)',
                     'border': '1px solid #ccc',
-                    'boxShadow': '2px 2px 10px rgba(0, 0, 0, 0.1)'
+                    'boxShadow': '2px 2px 10px rgba(0, 0, 0, 0.1)',
+                    'font-family': 'Courier New'
                 },
-                style_cell={'textAlign': 'left', 'padding': '5px', 'whiteSpace': 'normal'},
-                style_header={'backgroundColor': 'lightgrey', 'fontWeight': 'bold'}
+                style_cell={'textAlign': 'left', 'padding': '5px', 'whiteSpace': 'normal', 'color': 'white', 'backgroundColor': 'rgba(100, 100, 0, 0.95)', 'font-family': 'Courier New'},
+                style_header={'backgroundColor': 'rgba(30, 30, 0, 1)', 'fontWeight': 'bold', 'color': 'yellow', 'font-family': 'Courier New'},
             )
         ], style={
             'width': '33.33%',
             'height': '100vh',
             'overflowY': 'auto',
-            'backgroundColor': 'white',
+            'backgroundColor': 'rgba(70, 70, 0, 1)',
             'padding': '10px',
-            'boxShadow': '2px 0 5px rgba(0, 0, 0, 0.1)',
+            'boxShadow': '2px 0 5px rgba(0, 0, 0, 1)',
             'position': 'fixed',
             'left': 0,
             'top': 0,
@@ -413,14 +403,26 @@ app.layout = html.Div([
             dcc.Graph(
                 id='map',
                 style={'height': '100vh', 'width': '100%'},
-                config={'scrollZoom': True, 'displayModeBar': True}
-            )
+                config={'scrollZoom': True, 'displayModeBar': False}    # False can be changed to True
+            ),
+            html.Img(
+            src='/assets/compass.png',  # Replace with your image URL
+            style={
+                'position': 'absolute',
+                'top': '10px',  # Adjust as needed
+                'right': '10px',  # Adjust as needed
+                'width': '100px',  # Specify the width
+                # 'height': '50px',  # Specify the height
+                'opacity': 1,
+                'zIndex': 1001,  # Ensure the image is in front of other elements
+            }
+        )
         ], style={
             'marginLeft': '33.33%',
             'width': '66.66%',
             'height': '100vh'
         })
-    ], style={'display': 'flex'})
+    ], style={'display': 'flex', 'backgroundColor': 'black'}),
 ])
 
 @app.callback(
